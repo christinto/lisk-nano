@@ -98,7 +98,7 @@ const passphraseUsed = (store, action) => {
 const accountMiddleware = store => next => (action) => {
   next(action);
   switch (action.type) {
-    case actionTypes.metronomeBeat:
+    case actionTypes.relevantBlockAdded:
       updateAccountData(store, action);
       break;
     case actionTypes.transactionsUpdated:

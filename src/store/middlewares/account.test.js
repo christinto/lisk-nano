@@ -5,6 +5,7 @@ import { SYNC_ACTIVE_INTERVAL, SYNC_INACTIVE_INTERVAL } from '../../constants/ap
 import { accountUpdated } from '../../actions/account';
 import { activePeerUpdate } from '../../actions/peers';
 import * as votingActions from '../../actions/voting';
+import * as forgingActions from '../../actions/forging';
 import * as accountApi from '../../utils/api/account';
 import actionTypes from '../../constants/actions';
 import * as delegateApi from '../../utils/api/delegate';
@@ -29,15 +30,15 @@ describe('Account middleware', () => {
     },
   };
 
-  const activeBeatAction = {
-    type: actionTypes.metronomeBeat,
+  const relevantBlockAdded = {
+    type: actionTypes.relevantBlockAdded,
     data: {
       interval: SYNC_ACTIVE_INTERVAL,
     },
   };
 
-  const inactiveBeatAction = {
-    type: actionTypes.metronomeBeat,
+  const inactiveRelevantBlockAdded = {
+    type: actionTypes.relevantBlockAdded,
     data: {
       interval: SYNC_INACTIVE_INTERVAL,
     },
@@ -82,77 +83,73 @@ describe('Account middleware', () => {
     expect(next).to.have.been.calledWith(expectedAction);
   });
 
-  it(`should call account API methods on ${actionTypes.metronomeBeat} action when online`, () => {
+  it(`should call account API methods on ${actionTypes.relevantBlockAdded} action when online`, () => {
+    // does this matter?
     stubGetAccount.resolves({ balance: 0 });
 
-    middleware(store)(next)(activeBeatAction);
+    middleware(store)(next)(relevantBlockAdded);
 
     expect(stubGetAccount).to.have.been.calledWith();
     expect(store.dispatch).to.have.been.calledWith(activePeerUpdate({ online: true }));
   });
 
-  it(`should call account API methods on ${actionTypes.metronomeBeat} action when offline`, () => {
+  it(`should call account API methods on ${actionTypes.relevantBlockAdded} action when offline`, () => {
     const errorCode = 'EUNAVAILABLE';
     stubGetAccount.rejects({ error: { code: errorCode } });
 
-    middleware(store)(next)(activeBeatAction);
+    middleware(store)(next)(relevantBlockAdded);
 
     expect(store.dispatch).to.have.been.calledWith(activePeerUpdate(
       { online: false, code: errorCode }));
   });
 
-  it(`should call transactions API methods on ${actionTypes.metronomeBeat} action if account.balance changes`, () => {
+  it(`should call transactions API methods on ${actionTypes.relevantBlockAdded} action if account.balance changes`, () => {
     stubGetAccount.resolves({ balance: 10e8 });
 
-    middleware(store)(next)(activeBeatAction);
+    middleware(store)(next)(relevantBlockAdded);
 
     expect(stubGetAccount).to.have.been.calledWith();
-    // TODO why next expect doesn't work despite it being called according to test coverage?
-    // expect(stubTransactions).to.have.been.calledWith();
+    expect(stubTransactions).to.have.been.calledWith();
   });
 
-  it(`should call transactions API methods on ${actionTypes.metronomeBeat} action if account.balance changes and action.data.interval is SYNC_INACTIVE_INTERVAL`, () => {
+  it(`should call transactions API methods on ${actionTypes.relevantBlockAdded} action if account.balance changes and action.data.interval is SYNC_INACTIVE_INTERVAL`, () => {
     stubGetAccount.resolves({ balance: 10e8 });
 
-    middleware(store)(next)(inactiveBeatAction);
+    middleware(store)(next)(inactiveRelevantBlockAdded);
 
     expect(stubGetAccount).to.have.been.calledWith();
-    // TODO why next expect doesn't work despite it being called according to test coverage?
-    // expect(stubTransactions).to.have.been.calledWith();
+    expect(stubTransactions).to.have.been.calledWith();
   });
 
-  it(`should call transactions API methods on ${actionTypes.metronomeBeat} action if action.data.interval is SYNC_ACTIVE_INTERVAL and there are recent transactions`, () => {
+  it(`should call transactions API methods on ${actionTypes.relevantBlockAdded} action if action.data.interval is SYNC_ACTIVE_INTERVAL and there are recent transactions`, () => {
     stubGetAccount.resolves({ balance: 0 });
 
-    middleware(store)(next)(activeBeatAction);
+    middleware(store)(next)(relevantBlockAdded);
 
     expect(stubGetAccount).to.have.been.calledWith();
-    // TODO why next expect doesn't work despite it being called according to test coverage?
-    // expect(stubTransactions).to.have.been.calledWith();
+    expect(stubTransactions).to.have.been.calledWith();
   });
 
-  it(`should fetch delegate info on ${actionTypes.metronomeBeat} action if account.balance changes and account.isDelegate`, () => {
+  it(`should fetch delegate info on ${actionTypes.relevantBlockAdded} action if account.balance changes and account.isDelegate`, () => {
     const delegateApiMock = stub(delegateApi, 'getDelegate').returnsPromise().resolves({ success: true, delegate: {} });
     stubGetAccount.resolves({ balance: 10e8 });
     state.account.isDelegate = true;
     store.getState = () => (state);
 
-    middleware(store)(next)(activeBeatAction);
+    middleware(store)(next)(relevantBlockAdded);
     expect(store.dispatch).to.have.been.calledWith();
 
     delegateApiMock.restore();
   });
 
-  it(`should call fetchAndUpdateForgedBlocks(...) on ${actionTypes.metronomeBeat} action if account.balance changes and account.isDelegate`, () => {
+  it(`should call fetchAndUpdateForgedBlocks(...) on ${actionTypes.relevantBlockAdded} action if account.balance changes and account.isDelegate`, () => {
     state.account.isDelegate = true;
     store.getState = () => (state);
     stubGetAccount.resolves({ balance: 10e8 });
-    // const fetchAndUpdateForgedBlocksSpy = spy(forgingActions, 'fetchAndUpdateForgedBlocks');
+    const fetchAndUpdateForgedBlocksSpy = spy(forgingActions, 'fetchAndUpdateForgedBlocks');
 
-    middleware(store)(next)({ type: actionTypes.metronomeBeat });
-
-    // TODO why next expect doesn't work despite it being called according to test coverage?
-    // expect(fetchAndUpdateForgedBlocksSpy).to.have.been.calledWith();
+    middleware(store)(next)(relevantBlockAdded);
+    expect(fetchAndUpdateForgedBlocksSpy).to.have.been.calledWith();
   });
 
   it(`should fetch delegate info on ${actionTypes.transactionsUpdated} action if action.data.confirmed contains delegateRegistration transactions`, () => {
